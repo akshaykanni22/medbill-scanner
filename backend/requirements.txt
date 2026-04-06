@@ -33,7 +33,7 @@ sentence-transformers==3.0.1
 pdfplumber==0.11.1        # extract text from digital PDFs (no OCR needed for text PDFs)
                           # WHY pdfplumber over PyPDF2: better table extraction,
                           # actively maintained, handles complex layouts
-Pillow==10.3.0            # image processing - required by pytesseract
+Pillow==12.1.1            # image processing - required by pytesseract
 pytesseract==0.3.10       # OCR for scanned/image-based PDFs
                           # SECURITY NOTE: pytesseract shells out to Tesseract binary.
                           # We validate file type BEFORE it reaches this code.
@@ -55,4 +55,4 @@ pandas==2.2.2             # for parsing CMS CSV/ZIP files during ingest
                           # NOT used at request time - ingest only
 
 # --- Security ---
-python-multipart==0.0.9   # required for FastAPI file uploads
+python-multipart==0.0.22   # required for FastAPI file uploads
