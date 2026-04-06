@@ -1,0 +1,40 @@
+# === SECRETS - NEVER commit these ===
+.env
+*.env
+.env.*
+!.env.example
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# === Data files - CMS data is downloaded at runtime, not stored in git ===
+data/raw/
+data/processed/
+*.csv
+*.zip
+
+# === ChromaDB persisted data (we use in-memory, but just in case) ===
+chroma_db/
+*.sqlite3
+
+# === OS junk ===
+.DS_Store
+Thumbs.db
+
+# === IDE ===
+.vscode/
+.idea/
+*.swp
+
+# === Docker ===
+*.log
+
+# === Frontend build artifacts ===
+frontend/node_modules/
+frontend/build/
+frontend/dist/

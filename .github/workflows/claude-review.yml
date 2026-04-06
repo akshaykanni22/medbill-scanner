@@ -1,0 +1,51 @@
+name: Claude PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created]
+
+jobs:
+  claude-review:
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request != null &&
+       contains(github.event.comment.body, '/claude-review'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Claude PR Review
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          direct_prompt: |
+            Review this pull request for the MedBill Scanner project — a medical bill anomaly detector that handles sensitive patient data. Be thorough and flag any issues.
+
+            CRITICAL security rules to enforce (from CLAUDE.md):
+            1. Anthropic API must NEVER be called before PII redaction is complete — trace the call chain
+            2. Patient bill data must NEVER be persisted to disk — only CMS reference data may be saved
+            3. assert_no_pii_leak() must be called before every Anthropic API call
+            4. File uploads must validate magic bytes (not just extension) via python-magic
+            5. File size must be checked against MAX_UPLOAD_SIZE_MB before processing
+            6. CORS must be locked to FRONTEND_URL env var — never wildcard *
+            7. Rate limiting must be applied to all /api routes via slowapi
+            8. All config must come from environment variables, never hardcoded
+
+            Library policy:
+            - Any new library not in the approved list in CLAUDE.md must have passed all 6 security checks
+            - Flag any new import that wasn't in the previous version of requirements.txt or package.json
+
+            Code quality checks:
+            - No bare except: clauses — must catch specific exceptions
+            - No hardcoded secrets, API keys, or credentials
+            - Type hints required on all function signatures
+            - Logging via the logging module, never print()
+            - Comments must explain WHY, not WHAT
+
+            For each issue found, specify: file, line number, severity (CRITICAL/HIGH/MEDIUM/LOW), and recommended fix.
+            Approve only if no CRITICAL or HIGH severity issues are found.

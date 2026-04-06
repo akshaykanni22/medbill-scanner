@@ -1,0 +1,260 @@
+# ============================================================
+# MedBill Scanner - Docker Compose
+# ============================================================
+# Three services:
+#   1. backend  - FastAPI + MCP server + RAG (Python)
+#   2. frontend - React app (Node)
+#   3. chromadb - Vector database (CMS reference data only)
+#
+# SECURITY MODEL:
+#   The primary threat we defend against is data exfiltration —
+#   an attacker exploiting a dependency vulnerability to steal
+#   patient bill data from inside a running container.
+#
+#   Defense layers applied here:
+#   1. Non-root users     — containers cannot modify system files
+#   2. Read-only rootfs   — filesystem is immutable at runtime
+#   3. No new privileges  — prevents privilege escalation attacks
+#   4. Dropped capabilities — removes Linux kernel powers not needed
+#   5. Network isolation  — containers only talk to each other,
+#                           backend is the ONLY one allowed outbound
+#                           internet (to reach Anthropic API)
+#   6. Memory limits      — caps damage from memory-based attacks
+#   7. No inter-container raw access — chromadb not exposed to host
+#   8. Secrets via env    — never baked into image layers
+#
+# HOW TO RUN:
+#   cp .env.example .env       # add your ANTHROPIC_API_KEY
+#   docker-compose up --build  # first time
+#   docker-compose up          # after that
+#
+# HOW TO STOP:
+#   docker-compose down
+# ============================================================
+
+version: "3.9"
+
+# ============================================================
+# SECURITY DEFAULTS
+# Applied to every service via YAML anchors (&anchor / *ref)
+# WHY ANCHORS: define once, apply everywhere — no copy-paste drift
+# ============================================================
+x-security-defaults: &security-defaults
+
+  # --- No new privileges ---
+  # WHY: Prevents a process inside the container from using
+  # setuid/setgid binaries to gain root. Even if an attacker
+  # gets code execution, they cannot escalate to root.
+  security_opt:
+    - no-new-privileges:true
+
+  # --- Drop ALL Linux capabilities, add back only what's needed ---
+  # WHY: By default Docker containers run with 14 capabilities
+  # (NET_RAW, SYS_CHROOT, etc.) that are not needed for a web app
+  # and can be abused. We drop everything then add back only
+  # NET_BIND_SERVICE (needed to bind to port 80/443 if ever needed).
+  # Our apps run on high ports (3000, 8000) so even that is optional.
+  cap_drop:
+    - ALL
+  cap_add: []      # add nothing back — our apps need zero kernel caps
+
+  # --- Memory limit ---
+  # WHY: Caps the blast radius of a memory exhaustion attack.
+  # Also prevents a compromised container from consuming all
+  # host memory and taking down other services.
+  mem_limit: 512m
+  memswap_limit: 512m    # equal to mem_limit = no swap allowed
+
+  # --- PID limit ---
+  # WHY: Prevents fork bombs and limits the damage a compromised
+  # container can do by spawning unlimited processes.
+  pids_limit: 100
+
+services:
+
+  # ----------------------------------------------------------
+  # ChromaDB - Vector database for RAG
+  #
+  # SECURITY NOTE:
+  #   ChromaDB stores ONLY CMS public reference data (HCPCS codes
+  #   and Medicare rates). No patient data ever enters this container.
+  #   It is NOT exposed to the host — only the backend can reach it
+  #   via the internal medbill-internal network.
+  # ----------------------------------------------------------
+  chromadb:
+    image: chromadb/chroma:0.5.3       # pinned — no surprise updates
+    <<: *security-defaults
+    environment:
+      - IS_PERSISTENT=TRUE             # CMS data persists (it's public, not PHI)
+      - ANONYMIZED_TELEMETRY=FALSE     # never send usage data to Chroma cloud
+    volumes:
+      - chroma_data:/chroma/chroma     # named volume — only CMS reference data
+    # WHY NO HOST PORT EXPOSURE:
+    # ChromaDB does NOT need a port on the host machine.
+    # Only the backend container talks to it, via the internal network.
+    # Exposing it to the host would be an unnecessary attack surface.
+    networks:
+      - medbill-internal               # internal only — not reachable from frontend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: on-failure
+
+  # ----------------------------------------------------------
+  # Backend - FastAPI application
+  #
+  # SECURITY NOTES:
+  #   - Only container allowed outbound internet (Anthropic API)
+  #   - Read-only filesystem except /tmp (for pytesseract temp files)
+  #   - Runs as non-root user (defined in backend/Dockerfile)
+  #   - Patient data exists only in memory, never written to /tmp
+  #     (/tmp is available only because pytesseract needs it briefly
+  #      for its internal image processing — not for patient data)
+  # ----------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    <<: *security-defaults
+    ports:
+      - "127.0.0.1:8000:8000"
+      # WHY 127.0.0.1 prefix:
+      # Without it, Docker binds to 0.0.0.0 — all network interfaces.
+      # That means the backend is reachable from other machines on your
+      # network. Binding to 127.0.0.1 means localhost only.
+      # For a free public app you will put a reverse proxy (nginx) in
+      # front — the backend itself should never be directly internet-facing.
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - RAG_TOP_K=${RAG_TOP_K:-5}
+      - MAX_UPLOAD_SIZE_MB=${MAX_UPLOAD_SIZE_MB:-10}
+      - ALLOWED_FILE_TYPES=${ALLOWED_FILE_TYPES:-application/pdf,image/jpeg,image/png}
+      - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-10}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+    volumes:
+      # CMS data — read-only mount from Samsung SSD
+      # WHY :ro — the backend reads CMS data but should never write to it
+      # WHY SSD path — keeps all project data in one place on Sam-mini-extra
+      - ${MEDBILL_PROJECT_ROOT}/data:/app/data:ro
+      # /tmp writable — pytesseract needs it for internal temp files
+      # WHY tmpfs: tmpfs mounts live in RAM only, never touch disk
+      # Patient image data that briefly passes through pytesseract
+      # is gone when the container stops or /tmp is cleared
+    tmpfs:
+      - /tmp:size=100m,mode=1777
+      # size=100m  — cap at 100MB so /tmp cannot be used to stage large data
+      # mode=1777  — sticky bit, standard /tmp permissions
+    # WHY read_only: true on rootfs:
+    # The container filesystem is immutable. An attacker who gains code
+    # execution cannot install tools, write scripts, or modify the app.
+    # Combined with tmpfs for /tmp, this is a strong exfiltration barrier.
+    read_only: true
+    depends_on:
+      chromadb:
+        condition: service_healthy
+    networks:
+      - medbill-internal               # talks to chromadb
+      - medbill-external               # allowed outbound to Anthropic API
+    restart: on-failure
+
+  # ----------------------------------------------------------
+  # Frontend - React application
+  #
+  # SECURITY NOTES:
+  #   - No outbound internet access — serves only static files
+  #   - Cannot reach chromadb (not on internal network)
+  #   - Only talks to backend via medbill-external network
+  # ----------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    <<: *security-defaults
+    ports:
+      - "127.0.0.1:3000:80"            # localhost only — nginx inside container listens on port 80
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+    read_only: true
+    tmpfs:
+      - /tmp:size=50m,mode=1777        # nginx needs /tmp for temp files
+      - /var/cache/nginx:size=50m      # nginx cache
+      - /var/run:size=10m              # nginx PID file
+    depends_on:
+      - backend
+    networks:
+      - medbill-external               # only talks to backend, no internal DB access
+
+# ============================================================
+# NETWORKS
+#
+# TWO separate networks instead of one:
+#
+# medbill-internal — backend <-> chromadb ONLY
+#   ChromaDB is completely invisible to the frontend.
+#   Even if the frontend container is compromised, it
+#   cannot reach the vector database.
+#
+# medbill-external — frontend <-> backend, backend -> internet
+#   Frontend talks to backend API.
+#   Backend uses this for outbound calls to Anthropic API.
+#
+# WHY internal: true on medbill-internal:
+#   Disables external connectivity entirely for that network.
+#   Containers on it cannot make ANY outbound internet calls.
+#   ChromaDB has zero reason to reach the internet.
+# ============================================================
+networks:
+  medbill-internal:
+    driver: bridge
+    internal: true                     # NO internet access on this network
+    driver_opts:
+      com.docker.network.bridge.name: medbill_int
+
+  medbill-external:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: medbill_ext
+
+# ============================================================
+# VOLUMES
+#
+# All volumes point to /Volumes/Sam-mini-extra — the dedicated
+# Samsung SSD. Keeps Docker data off the Mac Mini system drive
+# and gives you one place to find everything project-related.
+#
+# FOLDER LAYOUT ON SSD:
+#   /Volumes/Sam-mini-extra/
+#   └── projects/
+#       └── medbill-scanner/
+#           ├── docker/
+#           │   └── chroma_data/   ← ChromaDB CMS reference data
+#           └── data/
+#               ├── raw/           ← downloaded CMS ZIPs (gitignored)
+#               └── processed/     ← cleaned CSVs for ChromaDB (gitignored)
+#
+# BEFORE FIRST RUN — create these folders on your SSD:
+#   mkdir -p /Volumes/Sam-mini-extra/projects/medbill-scanner/docker/chroma_data
+#   mkdir -p /Volumes/Sam-mini-extra/projects/medbill-scanner/data/raw
+#   mkdir -p /Volumes/Sam-mini-extra/projects/medbill-scanner/data/processed
+#
+# WHY BIND MOUNT OVER NAMED VOLUME:
+#   Named volumes let Docker choose the location (buried in
+#   ~/Library/Containers on Mac). Bind mounts give explicit
+#   control — you can see, back up, and wipe the data without
+#   digging through Docker internals.
+#
+# SECURITY NOTE:
+#   Only chroma_data (CMS public reference data) lands on SSD.
+#   Patient bill data NEVER touches disk — memory only, one request.
+# ============================================================
+volumes:
+  chroma_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${MEDBILL_PROJECT_ROOT}/docker/chroma_data

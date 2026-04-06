@@ -1,0 +1,58 @@
+# ============================================================
+# MedBill Scanner - Python Dependencies
+# ============================================================
+# Every library here is intentional. We avoid:
+#   - Unmaintained packages (last commit > 1 year)
+#   - Packages with known CVEs
+#   - Packages that "do too much" and hide what's happening
+# All versions are pinned for reproducibility.
+# ============================================================
+
+# --- Web framework ---
+fastapi==0.111.0          # async API framework, Pydantic v2 built-in
+uvicorn[standard]==0.30.1 # ASGI server to run FastAPI
+
+# --- Request validation & settings ---
+pydantic==2.7.1           # data validation - catches bad input before it hits logic
+pydantic-settings==2.3.0  # loads .env vars into typed Python objects (safe config)
+
+# --- Anthropic SDK ---
+anthropic==0.28.0         # official SDK - use this, never raw HTTP to avoid auth bugs
+
+# --- Vector database ---
+chromadb==0.5.3           # matches the Docker image version exactly
+
+# --- Embeddings ---
+# WHY sentence-transformers over OpenAI embeddings:
+#   - Runs locally inside Docker = patient data NEVER leaves your machine for embeddings
+#   - No extra API cost
+#   - Good enough for CPT code semantic search
+sentence-transformers==3.0.1
+
+# --- PDF & OCR ---
+pdfplumber==0.11.1        # extract text from digital PDFs (no OCR needed for text PDFs)
+                          # WHY pdfplumber over PyPDF2: better table extraction,
+                          # actively maintained, handles complex layouts
+Pillow==10.3.0            # image processing - required by pytesseract
+pytesseract==0.3.10       # OCR for scanned/image-based PDFs
+                          # SECURITY NOTE: pytesseract shells out to Tesseract binary.
+                          # We validate file type BEFORE it reaches this code.
+
+# --- File type validation ---
+python-magic==0.4.27      # checks REAL file type from magic bytes, not just extension
+                          # WHY: a malicious user could rename a .exe to .pdf.
+                          # Magic bytes don't lie. Extension does.
+
+# --- Rate limiting ---
+slowapi==0.1.9            # FastAPI-native rate limiter, wraps limits library
+limits==3.12.0
+
+# --- HTTP (for downloading CMS data) ---
+httpx==0.27.0             # async HTTP client - safer than requests for our async app
+
+# --- Data processing ---
+pandas==2.2.2             # for parsing CMS CSV/ZIP files during ingest
+                          # NOT used at request time - ingest only
+
+# --- Security ---
+python-multipart==0.0.9   # required for FastAPI file uploads
