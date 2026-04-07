@@ -22,6 +22,7 @@ jobs:
       - name: Claude PR Review
         uses: anthropics/claude-code-action@beta
         with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           direct_prompt: |
             Review this pull request for the MedBill Scanner project — a medical bill anomaly detector that handles sensitive patient data. Be thorough and flag any issues.
