@@ -92,7 +92,7 @@ class LLMRateLimitError(LLMError):
 # best balance of speed and quality.
 # WHY ENV VAR: allows A/B testing or emergency model swap
 # without a code change or container rebuild.
-_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
+_MODEL = settings.anthropic_model
 
 # SDK-level timeout in seconds. This is the total time the HTTP
 # request is allowed to take, including streaming.

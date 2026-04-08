@@ -32,8 +32,6 @@
 #   docker-compose down
 # ============================================================
 
-version: "3.9"
-
 # ============================================================
 # SECURITY DEFAULTS
 # Applied to every service via YAML anchors (&anchor / *ref)
@@ -62,8 +60,8 @@ x-security-defaults: &security-defaults
   # WHY: Caps the blast radius of a memory exhaustion attack.
   # Also prevents a compromised container from consuming all
   # host memory and taking down other services.
-  mem_limit: 512m
-  memswap_limit: 512m    # equal to mem_limit = no swap allowed
+  mem_limit: 1g
+  memswap_limit: 1g    # equal to mem_limit = no swap allowed
 
   # --- PID limit ---
   # WHY: Prevents fork bombs and limits the damage a compromised
@@ -115,8 +113,8 @@ services:
   # ----------------------------------------------------------
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     <<: *security-defaults
     ports:
       - "127.0.0.1:8000:8000"
@@ -127,6 +125,8 @@ services:
       # For a free public app you will put a reverse proxy (nginx) in
       # front — the backend itself should never be directly internet-facing.
     environment:
+      - TRANSFORMERS_OFFLINE=1
+      - HF_HUB_OFFLINE=1
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
@@ -170,6 +170,7 @@ services:
   #   - Only talks to backend via medbill-external network
   # ----------------------------------------------------------
   frontend:
+    user: "101:101"
     build:
       context: ./frontend
       dockerfile: Dockerfile

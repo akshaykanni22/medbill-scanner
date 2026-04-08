@@ -67,8 +67,11 @@ COPY --from=builder /app/build /usr/share/nginx/html
 # docker-compose.yml maps this to 127.0.0.1:3000 on the host.
 EXPOSE 80
 
+RUN sed -i 's|pid\s*/run/nginx.pid;|pid /tmp/nginx.pid;|' /etc/nginx/nginx.conf
+
 # Healthcheck: verify nginx is serving the app
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD wget -qO- http://localhost:80/ | grep -q "MedBill" || exit 1
+
 
 CMD ["nginx", "-g", "daemon off;"]

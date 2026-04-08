@@ -33,6 +33,7 @@ import { LoadingSpinner } from './components/LoadingSpinner';
 import { AnomalyReport } from './components/AnomalyReport';
 import { DisputeLetter } from './components/DisputeLetter';
 import type { HealthResponse } from './types';
+import { ApiError } from './utils/api';
 
 // ============================================================
 // TYPES
@@ -94,9 +95,9 @@ function ErrorCard({
   // ApiError sets this.name = 'ApiError' in its constructor, so we check by name.
   // WHY NOT duck-typing ('code' in error): DOMException also has a .code property,
   // which would cause false positives and show the wrong error message.
-  const isApiError = error.name === 'ApiError';
+  const isApiError = error instanceof ApiError;
   const message = isApiError
-    ? (error as { detail: string }).detail
+    ? (error as ApiError).detail
     : 'Could not connect to the analyzer. Is Docker running?';
 
   return (

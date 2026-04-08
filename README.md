@@ -62,6 +62,28 @@ The Anthropic API is called **only after** PII redaction is complete and verifie
 
 ---
 
+## 🖼 Screenshots
+
+### Upload
+
+![Bill upload screen showing drag-and-drop interface](docs/screenshots/Medbill_upload.png)
+
+*Drop a PDF or image of your bill — the app validates the file type by magic bytes before anything else runs.*
+
+### Analysis in Progress
+
+![Loading screen while the bill is being analyzed](docs/screenshots/medbill_analyzing.png)
+
+*OCR, PII redaction, and RAG retrieval all run locally. The Anthropic API is called only after redaction is verified.*
+
+### Anomaly Report and Dispute Letter
+
+![Completed analysis showing anomaly cards alongside a generated dispute letter](docs/screenshots/medbill_analysis_complete_letter.png)
+
+*Flagged line items appear as severity-tiered cards on the left. The ready-to-send dispute letter is on the right. Hovering a code in the letter highlights the matching anomaly card.*
+
+---
+
 ## ✨ Features
 
 | Feature                          | Description                                                                                                              |
@@ -130,14 +152,15 @@ mkdir -p data/processed
 
 # 4. Download CMS reference data (one-time, ~50 MB)
 #    Downloads HCPCS and RVU files from cms.gov
-python scripts/download_cms_data.py
+pipenv install 
+pipenv run python3 download_cms_data.py
 
 # 5. Build and start all services
-docker-compose up --build
+docker compose up --build
 
 # 6. Load CMS data into ChromaDB (one-time, run after services are up)
 #    Wait for "Application startup complete" in the backend logs first
-docker-compose exec backend python -m backend.rag.ingest
+docker compose run --rm backend python backend/rag/ingest.py
 
 # 7. Open the app
 open http://localhost:3000
@@ -145,10 +168,14 @@ open http://localhost:3000
 
 The frontend health check will show a warning banner if ChromaDB is not yet loaded. If you see it, step 6 has not completed yet.
 
+### Sample Bills for Testing
+
+Sample medical bills are available in `docs/test_bill/` — both a PDF (`test_bill.pdf`) and a JPEG (`test_bill.jpg`) version of the same bill. Upload either file on the first run to confirm the full pipeline is working end to end before testing with a real bill.
+
 ### Stopping
 
 ```bash
-docker-compose down
+docker compose down
 ```
 
 CMS reference data in `docker/chroma_data/` persists between runs. You do not need to re-run `ingest` unless you delete that directory.

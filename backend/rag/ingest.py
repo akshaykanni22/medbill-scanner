@@ -55,10 +55,13 @@ import logging
 import os
 import sys
 from pathlib import Path
+from typing import Optional
 
 import chromadb
 import pandas as pd
 from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
+
+from backend.config import settings
 
 # ---- Logging setup ----
 # WHY: Structured logging with timestamps survives Docker log aggregation.
@@ -97,14 +100,11 @@ BATCH_SIZE = 500
 # WHY env var override: in Docker the data is mounted at /app/data.
 # On the host for local testing it lives on the SSD. The env var
 # lets both environments point to the right place without code changes.
-DATA_DIR = Path(
-    os.getenv(
-        "MEDBILL_DATA_DIR",
-        "/Volumes/Sam-mini-extra/projects/medbill-scanner/data",
-    )
-)
+DATA_DIR = Path(os.getenv("MEDBILL_DATA_DIR", "/app/data"))
 HCPCS_CSV = DATA_DIR / "processed" / "hcpcs_codes.csv"
 RVU_CSV = DATA_DIR / "processed" / "rvu_rates.csv"
+
+_embedding_fn: Optional[SentenceTransformerEmbeddingFunction] = None
 
 
 # ---- ChromaDB client ----
@@ -126,8 +126,8 @@ def get_chroma_client() -> chromadb.HttpClient:
         resolved by Docker's internal DNS). On the host for dev, override
         to "localhost". The port defaults to 8000 (ChromaDB's default).
     """
-    host = os.getenv("CHROMA_HOST", "chromadb")
-    port = int(os.getenv("CHROMA_PORT", "8000"))
+    host = settings.chroma_host
+    port = settings.chroma_port
     log.info(f"Connecting to ChromaDB at {host}:{port}")
     client = chromadb.HttpClient(host=host, port=port)
     # heartbeat() raises immediately if ChromaDB is not reachable,
@@ -151,8 +151,12 @@ def get_embedding_fn() -> SentenceTransformerEmbeddingFunction:
         Defining it as a module-level function with a shared EMBEDDING_MODEL
         constant makes that contract explicit and easy to verify.
     """
+    global _embedding_fn
+    if _embedding_fn is not None:
+        return _embedding_fn
     log.info(f"Loading embedding model: {EMBEDDING_MODEL}")
-    return SentenceTransformerEmbeddingFunction(model_name=EMBEDDING_MODEL)
+    _embedding_fn = SentenceTransformerEmbeddingFunction(model_name=EMBEDDING_MODEL)
+    return _embedding_fn
 
 
 # ---- Data loading ----
@@ -210,7 +214,11 @@ def load_and_merge_csvs() -> pd.DataFrame:
     # Keep only the columns we need before merging to avoid name collisions.
     rvu_slim = rvu[["code", "total_rvu", "medicare_reference_price"]].copy()
 
-    merged = hcpcs.merge(rvu_slim, on="code", how="left")
+    # Before — left join drops CPT codes that are in RVU but not HCPCS Level II
+    # merged = hcpcs.merge(rvu_slim, on="code", how="left")
+
+    # After — outer join keeps all codes from both datasets
+    merged = hcpcs.merge(rvu_slim, on="code", how="outer")
 
     # Convert numeric columns — they were read as strings for safety.
     # Codes missing from RVU become NaN here; we fill with 0.0 below.
@@ -219,9 +227,11 @@ def load_and_merge_csvs() -> pd.DataFrame:
         merged["medicare_reference_price"], errors="coerce"
     ).fillna(0.0)
 
-    # Fill any remaining string NaNs with empty string for ChromaDB safety.
+    # # Fill any remaining string NaNs with empty string for ChromaDB safety.
+    # merged["short_description"] = merged["short_description"].fillna("")
+    # merged["long_description"] = merged["long_description"].fillna("")
+    merged["long_description"] = merged["long_description"].fillna(merged["short_description"].fillna(""))
     merged["short_description"] = merged["short_description"].fillna("")
-    merged["long_description"] = merged["long_description"].fillna("")
 
     log.info(
         f"Merged dataset: {len(merged):,} codes "
@@ -399,7 +409,7 @@ def main() -> None:
     log.info("=" * 60)
     log.info("MedBill Scanner — RAG Ingest")
     log.info(f"Embedding model : {EMBEDDING_MODEL}")
-    log.info(f"ChromaDB host   : {os.getenv('CHROMA_HOST', 'chromadb')}")
+    log.info(f"ChromaDB host   : {settings.chroma_host}")
     log.info(f"Data directory  : {DATA_DIR}")
     log.info("=" * 60)
 

@@ -84,12 +84,13 @@ RUN groupadd --gid ${APP_GID} ${APP_USER} && \
 # /app is the convention. chown to appuser so the app can write
 # to any subdirectory it needs (e.g., model cache for sentence-transformers).
 WORKDIR /app
+ENV PYTHONPATH=/app
 RUN chown ${APP_UID}:${APP_GID} /app
 
 # --- Python dependencies ---
 # Copy only requirements.txt first to leverage Docker layer caching.
 # This layer is cached until requirements.txt changes.
-COPY --chown=${APP_UID}:${APP_GID} requirements.txt .
+COPY --chown=${APP_UID}:${APP_GID} backend/requirements.txt .
 
 # Install as root to avoid permission issues with system packages,
 # but install to the user-level site-packages.
@@ -120,9 +121,10 @@ RUN mkdir -p /app/.cache/huggingface && \
 # --- Application code ---
 # Copy after requirements so code changes don't bust the pip cache.
 # WHY --chown: ensures appuser owns all app files.
-# WHY copy the whole context (not individual files): docker-compose
-# sets context: ./backend, so this copies everything in backend/.
-COPY --chown=${APP_UID}:${APP_GID} . .
+# WHY two COPY statements: context is project root, so we scope
+# exactly what the backend needs — no frontend or config clutter.
+COPY --chown=${APP_UID}:${APP_GID} backend/ ./backend/
+COPY --chown=${APP_UID}:${APP_GID} scripts/ ./scripts/
 
 # --- Switch to non-root user ---
 # All subsequent RUN, CMD, and ENTRYPOINT run as appuser.

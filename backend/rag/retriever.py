@@ -56,13 +56,14 @@ from backend.rag.ingest import (
     get_chroma_client,
     get_embedding_fn,
 )
+from backend.config import settings
 
 log = logging.getLogger(__name__)
 
 # Default number of results to return per search.
 # WHY env var: docker-compose.yml sets RAG_TOP_K=5. Configurable
 # without code changes — useful for tuning agent context window size.
-_RAG_TOP_K = int(os.getenv("RAG_TOP_K", "5"))
+_RAG_TOP_K = settings.rag_top_k
 
 # ---- Singleton state ----
 # WHY module-level (not class instance):
