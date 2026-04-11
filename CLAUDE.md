@@ -102,7 +102,7 @@ IMPLEMENTATION NOTE:
 
 ```
 medbill-scanner/                     ← git repo root AND data, all on Samsung SSD
-                                       full path: /Volumes/Sam-mini-extra/projects/medbill-scanner
+                                       full path: /path/to/medbill-scanner
 ├── CLAUDE.md                        ← you are here
 ├── docker-compose.yml               ✅ DONE
 ├── .env.example                     ✅ DONE
@@ -168,7 +168,7 @@ The entire project — repo AND data — lives on the Samsung SSD.
 There is no separate repo location. The SSD IS the repo.
 
 ```
-/Volumes/Sam-mini-extra/projects/medbill-scanner/   ← repo root = SSD root
+/path/to/medbill-scanner/   ← repo root = SSD root
 ├── backend/             ← application code (git tracked)
 ├── frontend/            ← application code (git tracked)
 ├── scripts/             ← utility scripts (git tracked)

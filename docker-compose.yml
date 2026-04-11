@@ -223,14 +223,12 @@ networks:
 # ============================================================
 # VOLUMES
 #
-# All volumes point to /Volumes/Sam-mini-extra — the dedicated
-# Samsung SSD. Keeps Docker data off the Mac Mini system drive
-# and gives you one place to find everything project-related.
+# All volumes point to the project root on external storage.
+# Keeps Docker data off the system drive and gives you one
+# place to find everything project-related.
 #
-# FOLDER LAYOUT ON SSD:
-#   /Volumes/Sam-mini-extra/
-#   └── projects/
-#       └── medbill-scanner/
+# FOLDER LAYOUT:
+#   /path/to/medbill-scanner/
 #           ├── docker/
 #           │   └── chroma_data/   ← ChromaDB CMS reference data
 #           └── data/
@@ -238,9 +236,9 @@ networks:
 #               └── processed/     ← cleaned CSVs for ChromaDB (gitignored)
 #
 # BEFORE FIRST RUN — create these folders on your SSD:
-#   mkdir -p /Volumes/Sam-mini-extra/projects/medbill-scanner/docker/chroma_data
-#   mkdir -p /Volumes/Sam-mini-extra/projects/medbill-scanner/data/raw
-#   mkdir -p /Volumes/Sam-mini-extra/projects/medbill-scanner/data/processed
+#   mkdir -p /path/to/medbill-scanner/docker/chroma_data
+#   mkdir -p /path/to/medbill-scanner/data/raw
+#   mkdir -p /path/to/medbill-scanner/data/processed
 #
 # WHY BIND MOUNT OVER NAMED VOLUME:
 #   Named volumes let Docker choose the location (buried in

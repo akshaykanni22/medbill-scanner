@@ -72,11 +72,11 @@ log = logging.getLogger(__name__)
 #      via docker-compose.yml so the app can access processed CSVs at runtime.
 #
 # The MEDBILL_DATA_DIR env var lets you override this for CI or other machines.
-# Default: /Volumes/Sam-mini-extra/projects/medbill-scanner/data
+# Default: /path/to/medbill-scanner/data
 SSD_DATA_DIR = Path(
     os.getenv(
         "MEDBILL_DATA_DIR",
-        "/Volumes/Sam-mini-extra/projects/medbill-scanner/data",
+        "/path/to/medbill-scanner/data",
     )
 )
 RAW_DIR = SSD_DATA_DIR / "raw"

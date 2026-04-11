@@ -11,7 +11,7 @@ PURPOSE:
     HTTP concerns live in api/routes.py and api/middleware.py.
 
 HOW TO RUN (development):
-    cd /Volumes/Sam-mini-extra/projects/medbill-scanner
+    cd /path/to/medbill-scanner
     uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 
 HOW TO RUN (Docker):

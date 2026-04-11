@@ -30,7 +30,7 @@ HOW TO RUN:
         "medbill": {
           "command": "python",
           "args": ["-m", "backend.mcp_server"],
-          "cwd": "/Volumes/Sam-mini-extra/projects/medbill-scanner"
+          "cwd": "/path/to/medbill-scanner"
         }
       }
     }
