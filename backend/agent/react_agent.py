@@ -84,7 +84,7 @@ log = logging.getLogger(__name__)
 # search_hcpcs calls, but 10 turns is already very generous. A model
 # stuck in a search loop (not calling report_anomalies) would burn
 # API cost without producing output. We fail loudly after the cap.
-_MAX_REACT_TURNS = 10
+_MAX_REACT_TURNS = 20
 
 # Tool names — defined as constants so changes propagate everywhere.
 _TOOL_SEARCH = "search_hcpcs"
@@ -291,6 +291,15 @@ You have access to a database of HCPCS/CPT codes with Medicare reference prices 
 - If a charge has no code and no close HCPCS match, flag it as unknown_code only if the description itself is suspicious or unrecognisable.
 - If the bill appears clean after your analysis, call report_anomalies with an empty anomalies list.
 - Never invent or guess Medicare prices. Only use prices from the pre-fetched context or search_hcpcs results.
+- If the bill contains NO HCPCS/CPT codes (only department-level descriptions
+  like "ROOM & BOARD", "PHARMACY", "OPERATING ROOM SERVICES"), do NOT call
+  search_hcpcs. These are summary bills — individual procedure codes are on
+  a separate itemized statement. Call report_anomalies immediately with
+  an info anomaly for each summary line item advising the patient to request
+  a full itemized bill with HCPCS codes before disputing.
+- Never call search_hcpcs more than once per unique code or description.
+- If search_hcpcs returns low-confidence results (no exact code match),
+  do not keep searching — flag as unknown_code and move on.
 
 ## Overcharge ratio computation
 
