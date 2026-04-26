@@ -19,7 +19,7 @@ Medical billing errors are common. Studies estimate 80% of bills contain mistake
 
 ## ⚙️ How It Works
 
-![alt text](<MedBill Architecture.svg>)
+![medbill scanner architecture](<docs/screenshots/MedBill Architecture.svg>)
 
 ---
 
