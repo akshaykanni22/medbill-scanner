@@ -27,7 +27,7 @@ SECURITY CONTRACT (from CLAUDE.md — non-negotiable):
       RedactedBill can only be created after assert_no_pii_leak() passes
       in pii_redactor.py. That chain is the enforcement mechanism.
 
-SDK VERSION: anthropic==0.28.0 (pinned in requirements.txt)
+SDK VERSION: anthropic==0.97.0 (pinned in requirements.txt)
 ============================================================
 """
 
@@ -187,7 +187,7 @@ def _get_client() -> anthropic.AsyncAnthropic:
 async def complete(
     messages: list[dict],
     *,
-    system: str,
+    system: str | list[dict],
     max_tokens: int = _DEFAULT_MAX_TOKENS_TEXT,
     temperature: float = 0.0,
 ) -> str:
@@ -211,8 +211,9 @@ async def complete(
         messages:   List of message dicts in Anthropic format:
                     [{"role": "user", "content": "..."}, ...]
                     Must alternate user/assistant, starting with user.
-        system:     System prompt. Sets the model's persona and constraints.
-                    Build this from non-PII context only.
+        system:     System prompt. Either a plain string or a list of text
+                    content blocks (use list form to add cache_control for
+                    prompt caching). Build this from non-PII context only.
         max_tokens: Maximum tokens in the response. Default 2048.
         temperature: Sampling temperature 0.0-1.0. Default 0.0 (deterministic).
 
@@ -289,10 +290,13 @@ async def complete(
 
     result = "\n".join(text_blocks)
 
+    cache_write = getattr(response.usage, "cache_creation_input_tokens", 0) or 0
+    cache_read = getattr(response.usage, "cache_read_input_tokens", 0) or 0
     log.debug(
         f"LLM complete done: stop_reason={response.stop_reason} "
         f"input_tokens={response.usage.input_tokens} "
-        f"output_tokens={response.usage.output_tokens}"
+        f"output_tokens={response.usage.output_tokens} "
+        f"cache_write={cache_write} cache_read={cache_read}"
     )
     return result
 
@@ -300,7 +304,7 @@ async def complete(
 async def complete_with_tools(
     messages: list[dict],
     *,
-    system: str,
+    system: str | list[dict],
     tools: list[dict],
     max_tokens: int = _DEFAULT_MAX_TOKENS_TOOLS,
 ) -> anthropic.types.Message:
@@ -334,7 +338,9 @@ async def complete_with_tools(
     ARGS:
         messages: Conversation history in Anthropic format.
                   Includes prior assistant turns and tool_result turns.
-        system:   System prompt for the agent persona and task.
+        system:   System prompt for the agent persona and task. Either a plain
+                  string or a list of text content blocks (use list form to add
+                  cache_control for prompt caching).
         tools:    Tool definitions in Anthropic tool schema format:
                   [{"name": str, "description": str, "input_schema": {...}}, ...]
         max_tokens: Maximum tokens for this turn. Default 4096.
@@ -394,10 +400,13 @@ async def complete_with_tools(
             f"max_tokens={max_tokens}). Agent turn may be incomplete."
         )
 
-    log.debug(
+    cache_write = getattr(response.usage, "cache_creation_input_tokens", 0) or 0
+    cache_read = getattr(response.usage, "cache_read_input_tokens", 0) or 0
+    log.info(
         f"LLM complete_with_tools done: stop_reason={response.stop_reason} "
         f"input_tokens={response.usage.input_tokens} "
-        f"output_tokens={response.usage.output_tokens}"
+        f"output_tokens={response.usage.output_tokens} "
+        f"cache_write={cache_write} cache_read={cache_read}"
     )
     return response
 

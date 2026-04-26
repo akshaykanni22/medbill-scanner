@@ -19,46 +19,7 @@ Medical billing errors are common. Studies estimate 80% of bills contain mistake
 
 ## ⚙️ How It Works
 
-```
-User uploads bill (PDF or image)
-         │
-         ▼
-[1] OCR Service                   LOCAL — no API call
-         │  pdfplumber (digital PDFs)
-         │  pytesseract (scanned images)
-         │
-         ▼
-[2] PII Redactor                  LOCAL — no API call
-         │  Regex strips: patient name, SSN, DOB,
-         │  insurance/Medicare IDs, phone, email, address
-         │  assert_no_pii_leak() verifies redaction before proceeding
-         │
-         ▼
-[3] RAG Retriever                 LOCAL — no API call
-         │  ChromaDB + sentence-transformers
-         │  Looks up HCPCS codes and Medicare reference prices
-         │  from CMS public data (RVU × $32.74 conversion factor)
-         │
-         ▼
-[4] ReAct Agent            <<<  ANTHROPIC API called here
-         │  claude-sonnet-4-20250514
-         │  Reasons over redacted bill text + RAG results
-         │  Calls search_hcpcs tool for unknown codes
-         │  Submits structured anomaly list via report_anomalies tool
-         │
-         ▼
-[5] Dispute Generator      <<<  ANTHROPIC API called here
-         │  Writes a professional dispute letter template
-         │  References specific codes and dollar amounts
-         │  Addressed generically — no patient PII included
-         │
-         ▼
-[6] React Frontend
-         Anomaly report + dispute letter, side by side
-         Cross-highlighting between letter and anomaly cards
-```
-
-The Anthropic API is called **only after** PII redaction is complete and verified. Patient bill text lives in memory for a single request and is never written to disk.
+![alt text](<MedBill Architecture.svg>)
 
 ---
 

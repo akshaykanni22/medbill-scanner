@@ -17,7 +17,8 @@ pydantic==2.7.1           # data validation - catches bad input before it hits l
 pydantic-settings==2.3.0  # loads .env vars into typed Python objects (safe config)
 
 # --- Anthropic SDK ---
-anthropic==0.28.0         # official SDK - use this, never raw HTTP to avoid auth bugs
+anthropic==0.97.0         # official SDK - use this, never raw HTTP to avoid auth bugs
+                          # upgraded from 0.28.0: v0.28.0 predates prompt caching (GA Dec 2024)
 
 # --- Vector database ---
 chromadb==0.5.3           # matches the Docker image version exactly

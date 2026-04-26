@@ -252,6 +252,12 @@ def _build_tools() -> list[dict]:
                 },
                 "required": ["total_line_items", "anomalies"],
             },
+            # WHY cache_control on the last tool:
+            # Anthropic caches the prefix up to and including the marked block,
+            # so placing cache_control on the final tool caches the entire tool
+            # schema (both tools) in one breakpoint. On turns 2+ the full
+            # ~800-token tool schema is served from cache at ~10% cost.
+            "cache_control": {"type": "ephemeral"},  # cache breakpoint 2: tool schema
         },
     ]
 
@@ -260,7 +266,15 @@ def _build_tools() -> list[dict]:
 # SYSTEM PROMPT
 # ============================================================
 
-_SYSTEM_PROMPT = """You are a medical billing specialist helping patients identify potential overcharges and errors in their medical bills.
+# System prompt as a cached content block list.
+# WHY LIST (not plain string): the cache_control breakpoint tells Anthropic to
+# cache everything up to and including this block. On turn 1 it is written to
+# cache (~125% cost). On turns 2-20 it is served from cache (~10% cost).
+# For a 10-turn ReAct loop this saves ~9 × 600 tokens at 90% discount.
+_SYSTEM_PROMPT: list[dict] = [
+    {
+        "type": "text",
+        "text": """You are a medical billing specialist helping patients identify potential overcharges and errors in their medical bills.
 
 You have access to a database of HCPCS/CPT codes with Medicare reference prices computed from CMS Relative Value Units (RVU × $32.74 conversion factor). These are government reference prices — not the only valid price, but a strong baseline for identifying outliers.
 
@@ -297,7 +311,6 @@ You have access to a database of HCPCS/CPT codes with Medicare reference prices 
   a separate itemized statement. Call report_anomalies immediately with
   an info anomaly for each summary line item advising the patient to request
   a full itemized bill with HCPCS codes before disputing.
-- Never call search_hcpcs more than once per unique code or description.
 - If search_hcpcs returns low-confidence results (no exact code match),
   do not keep searching — flag as unknown_code and move on.
 
@@ -313,7 +326,10 @@ Keep these specific and actionable:
 - "Request an itemized bill and ask your provider to explain the charge for code {code}."
 - "Ask your provider why code {code} appears twice on dates {date1} and {date2}."
 - "Contact your insurance company to confirm this code should not be bundled with {other_code}."
-"""
+""",
+        "cache_control": {"type": "ephemeral"},  # cache breakpoint 1: system prompt
+    }
+]
 
 
 # ============================================================
@@ -323,7 +339,7 @@ Keep these specific and actionable:
 def _build_user_message(
     bill: RedactedBill,
     rag_context: dict[str, RAGResult],
-) -> str:
+) -> list[dict]:
     """
     Build the initial user message sent to the agent.
 
@@ -348,7 +364,10 @@ def _build_user_message(
         rag_context: Pre-fetched HCPCS reference data keyed by code.
 
     RETURNS:
-        A formatted string ready to use as the user message content.
+        A list containing a single cached text content block. Using a list
+        (not a plain string) allows cache_control to be attached, so the
+        bill text + RAG context are cached after turn 1 and served from
+        cache on turns 2-20 of the ReAct loop (~10% token cost on cache hits).
     """
     lines: list[str] = []
 
@@ -401,7 +420,13 @@ def _build_user_message(
         "When you have finished your analysis, call report_anomalies with your findings."
     )
 
-    return "\n".join(lines)
+    return [
+        {
+            "type": "text",
+            "text": "\n".join(lines),
+            "cache_control": {"type": "ephemeral"},  # cache breakpoint 3: bill + RAG context
+        }
+    ]
 
 
 # ============================================================

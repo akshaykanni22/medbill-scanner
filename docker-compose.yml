@@ -136,7 +136,6 @@ services:
       - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-10}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
     volumes:
-      # CMS data — read-only mount from Samsung SSD
       # WHY :ro — the backend reads CMS data but should never write to it
       # WHY SSD path — keeps all project data in one place on Sam-mini-extra
       - ${MEDBILL_PROJECT_ROOT}/data:/app/data:ro

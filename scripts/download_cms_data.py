@@ -66,7 +66,7 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 # ---- Paths ----
-# Data lives on the Samsung SSD, not inside the repo or container image.
+# Data lives on the local directory, not inside the repo or container image.
 # WHY: Keeps downloaded CMS files (can be large) off the Mac system drive.
 #      The SSD path is also mounted into the backend container (read-only)
 #      via docker-compose.yml so the app can access processed CSVs at runtime.
