@@ -55,6 +55,7 @@ Medical billing errors are common. Studies estimate 80% of bills contain mistake
 | 🔍 Five Anomaly Types            | `price_overcharge`, `duplicate_charge`, `unbundling`, `upcoding`, `unknown_code`                                         |
 | 🎯 Severity Tiers                | HIGH (dispute immediately), MEDIUM (request clarification), LOW (worth reviewing), INFO                                  |
 | 🤖 ReAct Agent Architecture      | Multi-turn reasoning loop with tool-based structured output — no brittle text parsing                                    |
+| ⚡ Prompt Caching               | Three cache breakpoints on the ReAct agent (system prompt, tool schema, bill + RAG context) — turns 2–20 of each analysis served from cache at ~10% token cost |
 | ✉️ Dispute Letter Generator      | Professional letter ready to send, references specific codes and dollar amounts, no PII                                  |
 | 🔗 Cross-Highlighting            | Hover a code in the dispute letter to highlight the matching anomaly card                                                |
 | 💾 Zero Patient Data Persistence | No database writes, no log persistence — data gone when the request completes                                            |
@@ -301,6 +302,36 @@ Medicare Reference Price = Total RVU × $32.74
 ```
 
 The $32.74 figure is the 2025 CMS Physician Fee Schedule conversion factor — a public, government-set value updated annually. This gives a defensible baseline for price comparisons. It is not the only valid price (facility fees, geographic adjustments, and payer contracts all affect actual rates), but charges significantly above this baseline are worth questioning.
+
+---
+
+## 🏗 Architecture Decisions
+
+Key tradeoffs made during design — recorded here so the reasoning is visible.
+
+### ChromaDB over a relational database
+
+A relational database (PostgreSQL, SQLite) can only match HCPCS codes by exact string. A provider might bill "office consultation" with no code attached — an exact-match query returns nothing. ChromaDB's embedding-based search finds the closest procedure by meaning, not string equality, enabling the agent to flag anomalies even when the bill omits the HCPCS code entirely.
+
+A cloud vector database (Pinecone, Weaviate) was ruled out for the same reason local embeddings were chosen: patient bill data must never leave the machine. ChromaDB runs as a Docker container with zero internet access enforced at the network layer.
+
+### Local embeddings over the OpenAI Embeddings API
+
+`sentence-transformers` runs entirely inside Docker. Sending bill text to an external embedding API would create a PII leak vector before redaction is even complete. Local embeddings run in the same container as the redactor — the data never crosses a network boundary.
+
+### Regex PII redaction over an ML NER model
+
+spaCy or a fine-tuned NER model would have higher recall, but regex patterns are auditable. Every rule is a readable, testable expression that a non-ML engineer or compliance reviewer can inspect. An ML model's decisions are opaque — a regex miss is a visible, fixable gap in a known pattern file. For the one step that gates all Anthropic API access, predictable and auditable beats probabilistic.
+
+### Prompt caching on the ReAct agent
+
+The ReAct loop runs up to 20 turns per bill. Without caching, the same ~2,400-token fixed prefix (system prompt + tool schema + bill text + RAG context) is re-billed at full price on every turn. With three `cache_control` breakpoints, turns 2–20 serve that entire prefix from cache at ~10% of the normal input token cost.
+
+Production measurement on a 10-turn analysis: turn 1 wrote 682 tokens to cache; turns 2–10 each read 2,560–3,989 tokens from cache at near-zero cost. The dispute letter generator uses a single-turn call and was deliberately left uncached — a one-shot call cannot amortize the cache write cost within the 5-minute TTL.
+
+### Tool-based structured output over text parsing
+
+The agent calls a `report_anomalies` tool with a JSON schema instead of being asked to print JSON in its text response. A tool schema forces the Anthropic API to validate the model's output before it reaches application code — malformed anomaly data is rejected at the API layer, not discovered mid-parse. It also eliminates prompt fragility: there is no instruction like "output valid JSON" that a future model version might interpret differently.
 
 ---
 
