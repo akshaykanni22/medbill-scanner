@@ -354,8 +354,8 @@ This tool identifies potential billing anomalies for informational purposes only
 
 | Name                   | Role                                                       | Profile                                          |
 | ---------------------- | ---------------------------------------------------------- | ------------------------------------------------ |
-| **Akshay K**           | Creator & Lead Engineer — Senior SWE, AI engineering focus | [@akshayreddyy](https://github.com/akshayreddyy) |
-| **Claude (Anthropic)** | AI Pair Programmer — `claude-sonnet-4-6`                   | [Anthropic](https://anthropic.com)               |
+| **Akshay K**           | Creator & Lead Engineer — Senior SWE, AI engineering focus | [@akshay K](https://github.com/akshaykanni22) |
+| **Claude (Anthropic)** | AI Pair Programmer | [Anthropic](https://anthropic.com)               |
 
 ---
 
