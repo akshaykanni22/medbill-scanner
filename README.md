@@ -11,9 +11,9 @@
 
 A free, open-source medical bill anomaly detector that helps patients identify potential overcharges and generate dispute letters.
 
-**Free and open source — runs entirely on your machine. Your bill data never leaves.**
+**Free and open source. Runs entirely on your machine. Your bill data never leaves.**
 
-Medical billing errors are common. Studies estimate 80% of bills contain mistakes, yet most patients lack the tools to identify them. MedBill Scanner extracts charges from your bill, compares them against CMS Medicare reference prices, and flags anomalies — then generates a professional dispute letter you can send to your provider.
+Medical billing errors are common. Studies estimate 80% of bills contain mistakes, yet most patients lack the tools to identify them. MedBill Scanner extracts charges from your bill, compares them against CMS Medicare reference prices, and flags anomalies, then generates a professional dispute letter you can send to your provider.
 
 ---
 
@@ -29,7 +29,7 @@ Medical billing errors are common. Studies estimate 80% of bills contain mistake
 
 ![Bill upload screen showing drag-and-drop interface](docs/screenshots/Medbill_upload.png)
 
-*Drop a PDF or image of your bill — the app validates the file type by magic bytes before anything else runs.*
+*Drop a PDF or image of your bill. The app validates the file type by magic bytes before anything else runs.*
 
 ### Analysis in Progress
 
@@ -51,14 +51,14 @@ Medical billing errors are common. Studies estimate 80% of bills contain mistake
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | 📄 PDF & Image Support           | pdfplumber handles digital PDFs; pytesseract handles scanned images and photos                                           |
 | 🔐 PII Stripped Before AI        | Regex-based redaction (SSN, DOB, names, insurance IDs, phone, email, address) with assertion check before every API call |
-| 💰 Medicare Reference Pricing    | CMS HCPCS public data with RVU-based fair price estimates — no third-party pricing API                                   |
+| 💰 Medicare Reference Pricing    | CMS HCPCS public data with RVU-based fair price estimates, no third-party pricing API                                   |
 | 🔍 Five Anomaly Types            | `price_overcharge`, `duplicate_charge`, `unbundling`, `upcoding`, `unknown_code`                                         |
 | 🎯 Severity Tiers                | HIGH (dispute immediately), MEDIUM (request clarification), LOW (worth reviewing), INFO                                  |
-| 🤖 ReAct Agent Architecture      | Multi-turn reasoning loop with tool-based structured output — no brittle text parsing                                    |
-| ⚡ Prompt Caching               | Three cache breakpoints on the ReAct agent (system prompt, tool schema, bill + RAG context) — turns 2–20 of each analysis served from cache at ~10% token cost |
+| 🤖 ReAct Agent Architecture      | Multi-turn reasoning loop with tool-based structured output, no brittle text parsing                                    |
+| ⚡ Prompt Caching               | Three cache breakpoints on the ReAct agent (system prompt, tool schema, bill + RAG context); turns 2–20 of each analysis served from cache at ~10% token cost |
 | ✉️ Dispute Letter Generator      | Professional letter ready to send, references specific codes and dollar amounts, no PII                                  |
 | 🔗 Cross-Highlighting            | Hover a code in the dispute letter to highlight the matching anomaly card                                                |
-| 💾 Zero Patient Data Persistence | No database writes, no log persistence — data gone when the request completes                                            |
+| 💾 Zero Patient Data Persistence | No database writes, no log persistence; data gone when the request completes                                            |
 
 ---
 
@@ -71,7 +71,7 @@ Medical billing errors are common. Studies estimate 80% of bills contain mistake
 | Embeddings     | sentence-transformers (local, no API)         |
 | Vector DB      | ChromaDB                                      |
 | OCR            | pdfplumber (digital), pytesseract (scanned)   |
-| PII detection  | Python stdlib `re` — no ML model              |
+| PII detection  | Python stdlib `re`, no ML model               |
 | Reference data | CMS HCPCS + RVU files (public domain)         |
 | Rate limiting  | slowapi                                       |
 | Frontend       | React 18, TypeScript, Tailwind CSS            |
@@ -86,7 +86,7 @@ Medical billing errors are common. Studies estimate 80% of bills contain mistake
 
 - Docker and Docker Compose
 - Python 3.11+ (for the one-time data download script)
-- An Anthropic API key — get one at [console.anthropic.com](https://console.anthropic.com)
+- An Anthropic API key (get one at [console.anthropic.com](https://console.anthropic.com))
 
 ### Steps
 
@@ -132,7 +132,7 @@ The frontend health check will show a warning banner if ChromaDB is not yet load
 
 ### Sample Bills for Testing
 
-Sample medical bills are available in `docs/test_bill/` — both a PDF (`test_bill.pdf`) and a JPEG (`test_bill.jpg`) version of the same bill. Upload either file on the first run to confirm the full pipeline is working end to end before testing with a real bill.
+Sample medical bills are available in `docs/test_bill/`. Both a PDF (`test_bill.pdf`) and a JPEG (`test_bill.jpg`) version of the same bill are included. Upload either file on the first run to confirm the full pipeline is working end to end before testing with a real bill.
 
 ### Stopping
 
@@ -146,36 +146,36 @@ CMS reference data in `docker/chroma_data/` persists between runs. You do not ne
 
 ## 🔒 Security
 
-Security was designed in from the start — not added afterward. Key properties:
+Security was designed in from the start, not added afterward. Key properties:
 
 ### Data handling
 
-- **PII redaction before every API call** — `assert_no_pii_leak()` re-runs all patterns on the redacted text and blocks the API call if any PII pattern still matches
-- **No patient data persistence** — bill text lives in memory for one HTTP request only; never written to disk, never logged
-- **CMS reference data only in ChromaDB** — the vector database contains public government data, not patient information
+- **PII redaction before every API call**: `assert_no_pii_leak()` re-runs all patterns on the redacted text and blocks the API call if any PII pattern still matches
+- **No patient data persistence**: bill text lives in memory for one HTTP request only; never written to disk, never logged
+- **CMS reference data only in ChromaDB**: the vector database contains public government data, not patient information
 
 ### Application
 
 - File uploads validated by magic bytes (not just extension) via `python-magic`
 - Files over 10 MB rejected; only PDF, JPEG, PNG accepted (HTTP 415 otherwise)
 - Rate limiting: 10 requests per minute per IP via slowapi
-- CORS locked to `FRONTEND_URL` env var — never wildcard `*`
-- All config via environment variables — no secrets in code
+- CORS locked to `FRONTEND_URL` env var, never wildcard `*`
+- All config via environment variables, no secrets in code
 
 ### Container hardening (configured in `docker-compose.yml`)
 
 - Non-root user (uid 1000) in all containers
-- Read-only root filesystem — immutable at runtime; attackers cannot install tools
-- `no-new-privileges` — prevents privilege escalation via setuid binaries
+- Read-only root filesystem, immutable at runtime; attackers cannot install tools
+- `no-new-privileges` prevents privilege escalation via setuid binaries
 - All Linux capabilities dropped (`cap_drop: ALL`, nothing added back)
-- `/tmp` is a tmpfs RAM mount, capped at 100 MB — never touches disk
+- `/tmp` is a tmpfs RAM mount, capped at 100 MB, never touches disk
 - Memory limited to 512 MB per container
-- PID limit of 100 — prevents fork bombs
+- PID limit of 100 prevents fork bombs
 - Two isolated Docker networks:
-  - `medbill-internal` — backend ↔ ChromaDB only, no internet access
-  - `medbill-external` — frontend ↔ backend, backend → Anthropic API
+  - `medbill-internal`: backend ↔ ChromaDB only, no internet access
+  - `medbill-external`: frontend ↔ backend, backend → Anthropic API
 - ChromaDB has zero internet access; frontend cannot reach it directly
-- All ports bound to `127.0.0.1` — not reachable from other machines on your network
+- All ports bound to `127.0.0.1`, not reachable from other machines on your network
 
 ---
 
@@ -301,37 +301,37 @@ CMS publishes Relative Value Units (RVUs) for each HCPCS procedure code. A Medic
 Medicare Reference Price = Total RVU × $32.74
 ```
 
-The $32.74 figure is the 2025 CMS Physician Fee Schedule conversion factor — a public, government-set value updated annually. This gives a defensible baseline for price comparisons. It is not the only valid price (facility fees, geographic adjustments, and payer contracts all affect actual rates), but charges significantly above this baseline are worth questioning.
+The $32.74 figure is the 2025 CMS Physician Fee Schedule conversion factor, a public government-set value updated annually. This gives a defensible baseline for price comparisons. It is not the only valid price (facility fees, geographic adjustments, and payer contracts all affect actual rates), but charges significantly above this baseline are worth questioning.
 
 ---
 
 ## 🏗 Architecture Decisions
 
-Key tradeoffs made during design — recorded here so the reasoning is visible.
+Key tradeoffs made during design, recorded here so the reasoning is visible.
 
 ### ChromaDB over a relational database
 
-A relational database (PostgreSQL, SQLite) can only match HCPCS codes by exact string. A provider might bill "office consultation" with no code attached — an exact-match query returns nothing. ChromaDB's embedding-based search finds the closest procedure by meaning, not string equality, enabling the agent to flag anomalies even when the bill omits the HCPCS code entirely.
+A relational database (PostgreSQL, SQLite) can only match HCPCS codes by exact string. A provider might bill "office consultation" with no code attached, so an exact-match query returns nothing. ChromaDB's embedding-based search finds the closest procedure by meaning, not string equality, enabling the agent to flag anomalies even when the bill omits the HCPCS code entirely.
 
 A cloud vector database (Pinecone, Weaviate) was ruled out for the same reason local embeddings were chosen: patient bill data must never leave the machine. ChromaDB runs as a Docker container with zero internet access enforced at the network layer.
 
 ### Local embeddings over the OpenAI Embeddings API
 
-`sentence-transformers` runs entirely inside Docker. Sending bill text to an external embedding API would create a PII leak vector before redaction is even complete. Local embeddings run in the same container as the redactor — the data never crosses a network boundary.
+`sentence-transformers` runs entirely inside Docker. Sending bill text to an external embedding API would create a PII leak vector before redaction is even complete. Local embeddings run in the same container as the redactor; the data never crosses a network boundary.
 
 ### Regex PII redaction over an ML NER model
 
-spaCy or a fine-tuned NER model would have higher recall, but regex patterns are auditable. Every rule is a readable, testable expression that a non-ML engineer or compliance reviewer can inspect. An ML model's decisions are opaque — a regex miss is a visible, fixable gap in a known pattern file. For the one step that gates all Anthropic API access, predictable and auditable beats probabilistic.
+spaCy or a fine-tuned NER model would have higher recall, but regex patterns are auditable. Every rule is a readable, testable expression that a non-ML engineer or compliance reviewer can inspect. An ML model's decisions are opaque; a regex miss is a visible, fixable gap in a known pattern file. For the one step that gates all Anthropic API access, predictable and auditable beats probabilistic.
 
 ### Prompt caching on the ReAct agent
 
 The ReAct loop runs up to 20 turns per bill. Without caching, the same ~2,400-token fixed prefix (system prompt + tool schema + bill text + RAG context) is re-billed at full price on every turn. With three `cache_control` breakpoints, turns 2–20 serve that entire prefix from cache at ~10% of the normal input token cost.
 
-Production measurement on a 10-turn analysis: turn 1 wrote 682 tokens to cache; turns 2–10 each read 2,560–3,989 tokens from cache at near-zero cost. The dispute letter generator uses a single-turn call and was deliberately left uncached — a one-shot call cannot amortize the cache write cost within the 5-minute TTL.
+Production measurement on a 10-turn analysis: turn 1 wrote 682 tokens to cache; turns 2–10 each read 2,560–3,989 tokens from cache at near-zero cost. The dispute letter generator uses a single-turn call and was deliberately left uncached. A one-shot call cannot amortize the cache write cost within the 5-minute TTL.
 
 ### Tool-based structured output over text parsing
 
-The agent calls a `report_anomalies` tool with a JSON schema instead of being asked to print JSON in its text response. A tool schema forces the Anthropic API to validate the model's output before it reaches application code — malformed anomaly data is rejected at the API layer, not discovered mid-parse. It also eliminates prompt fragility: there is no instruction like "output valid JSON" that a future model version might interpret differently.
+The agent calls a `report_anomalies` tool with a JSON schema instead of being asked to print JSON in its text response. A tool schema forces the Anthropic API to validate the model's output before it reaches application code; malformed anomaly data is rejected at the API layer, not discovered mid-parse. It also eliminates prompt fragility: there is no instruction like "output valid JSON" that a future model version might interpret differently.
 
 ---
 
@@ -354,7 +354,7 @@ This tool identifies potential billing anomalies for informational purposes only
 
 | Name                   | Role                                                       | Profile                                          |
 | ---------------------- | ---------------------------------------------------------- | ------------------------------------------------ |
-| **Akshay K**           | Creator & Lead Engineer — Senior SWE, AI engineering focus | [@akshay K](https://github.com/akshaykanni22) |
+| **Akshay K**           | Creator & Lead Engineer, Senior SWE, AI engineering focus | [@akshay K](https://github.com/akshaykanni22) |
 | **Claude (Anthropic)** | AI Pair Programmer | [Anthropic](https://anthropic.com)               |
 
 ---
